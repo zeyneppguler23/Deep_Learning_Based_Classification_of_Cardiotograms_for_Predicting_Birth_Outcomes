@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+.env/
+
+# ML / model files
+*.h5
+*.keras
+*.pt
+*.ckpt
+*.pkl
+
+
