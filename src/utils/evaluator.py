@@ -1,3 +1,4 @@
+from tabnanny import verbose
 import numpy as np
 from sklearn.metrics import (
     roc_auc_score, f1_score, precision_score,
@@ -34,9 +35,12 @@ class Evaluator:
                   f"mean={y_prob.mean():.3f}, std={y_prob.std():.3f}")
         
         # Calculate AUC
-        auc = roc_auc_score(y_true, y_prob)
-        if verbose:
-            print(f"AUC: {auc:.3f}")
+        if len(np.unique(y_true)) < 2:
+            auc = np.nan
+            if verbose:
+                print("⚠️  AUC undefined (single-class fold)")
+        else:
+            auc = roc_auc_score(y_true, y_prob)
         
         # Evaluate at each threshold and collect metrics
         fold_metrics = {

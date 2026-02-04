@@ -22,6 +22,6 @@ class Trainer:
             epochs=self.max_epochs,
             class_weight=class_weights,
             callbacks=self.callbacks,
-            verbose=1
+            verbose=0
         )
         return history
