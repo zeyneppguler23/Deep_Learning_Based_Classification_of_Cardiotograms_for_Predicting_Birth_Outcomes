@@ -24,11 +24,8 @@ class DatasetSampler:
         Dataset has: 164 normal (label=1), 56 abnormal (label=0)
         Result: 56 normal + 56 abnormal = 112 balanced samples
         """
-        normal_idx = np.where(y_int == self.normal_label)[0]
-        abnormal_idx = np.where(y_int == self.abnormal_label)[0]
-
-        if len(normal_idx) == 0 or len(abnormal_idx) == 0:
-            raise ValueError("Need both normal and abnormal samples to balance.")
+        normal_idx = np.where(y_int == 1)[0]
+        abnormal_idx = np.where(y_int == 0)[0]
 
         # Undersample normal cases to match abnormal count (matches notebook logic)
         np.random.seed(seed)
@@ -45,8 +42,7 @@ class DatasetSampler:
         # Combine into balanced dataset
         balanced_indices = np.concatenate([sampled_normal_indices, sampled_abnormal_indices])
         X_balanced = normalize_fn(X[balanced_indices])
+        y_balanced = y[balanced_indices]
+        y_labels_balanced = y_balanced[:, 1] 
         
-        # Return integer labels
-        y_balanced_int = y_int[balanced_indices]
-        
-        return X_balanced, y_balanced_int
+        return X_balanced, y_labels_balanced
