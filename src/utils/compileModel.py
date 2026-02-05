@@ -7,7 +7,6 @@ def compileModel(model):
     """
     model.compile(
         optimizer=Adam(learning_rate=0.001),
-        loss="categorical_crossentropy",
-        metrics=["accuracy"]
+        loss="categorical_crossentropy"
     )
     return model

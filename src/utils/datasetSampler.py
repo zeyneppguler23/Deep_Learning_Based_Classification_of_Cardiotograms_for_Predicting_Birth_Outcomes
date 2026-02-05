@@ -3,53 +3,50 @@ from sklearn.utils import resample
 
 class DatasetSampler:
     def __init__(self, normal_label=1, abnormal_label=0):
+        """
+        Integer label encoding:
+        - 0 = abnormal
+        - 1 = normal
+        
+        After one-hot encoding with np.eye(2)[y_int]:
+        - y[:, 0] = abnormal indicator (1 if abnormal, 0 otherwise)
+        - y[:, 1] = normal indicator (1 if normal, 0 otherwise)
+        """
         self.normal_label = normal_label
         self.abnormal_label = abnormal_label
 
     def balance(self, X, y_int, normalize_fn, seed):
         """
         Return (X_bal, y_bal_int).
-        Downsample/upsample the majority class to match minority size.
-        Uses replacement only when majority size < minority size.
+        Undersample normal cases (majority) to match abnormal count (minority).
+        Uses ALL abnormal cases.
+        
+        Dataset has: 164 normal (label=1), 56 abnormal (label=0)
+        Result: 56 normal + 56 abnormal = 112 balanced samples
         """
         normal_idx = np.where(y_int == self.normal_label)[0]
         abnormal_idx = np.where(y_int == self.abnormal_label)[0]
 
-        # If expected labels missing, fallback to generic two-class handling
         if len(normal_idx) == 0 or len(abnormal_idx) == 0:
-            classes, counts = np.unique(y_int, return_counts=True)
-            if len(classes) < 2:
-                raise ValueError("Need at least two classes to balance.")
-            class_indices = {cls: np.where(y_int == cls)[0] for cls in classes}
-            minority_cls = classes[np.argmin(counts)]
-            majority_cls = classes[np.argmax(counts)]
-            minority_idx = class_indices[minority_cls]
-            majority_idx = class_indices[majority_cls]
-        else:
-            # identify minority / majority
-            if len(normal_idx) <= len(abnormal_idx):
-                minority_idx, majority_idx = normal_idx, abnormal_idx
-            else:
-                minority_idx, majority_idx = abnormal_idx, normal_idx
+            raise ValueError("Need both normal and abnormal samples to balance.")
 
-        n_min = len(minority_idx)
-        if n_min == 0:
-            raise ValueError("No samples found for minority class; cannot balance.")
-
-        replace = len(majority_idx) < n_min
-        sampled_majority = resample(
-            majority_idx,
-            n_samples=n_min,
-            replace=replace,
+        # Undersample normal cases to match abnormal count (matches notebook logic)
+        np.random.seed(seed)
+        sampled_normal_indices = resample(
+            normal_idx,
+            n_samples=len(abnormal_idx),  # Match abnormal count (56)
+            replace=False,
             random_state=seed
         )
-
-        balanced_idx = np.concatenate([sampled_majority, minority_idx])
-        # use numpy Generator (default_rng) to avoid RandomState linter warning
-        rng = np.random.default_rng(seed)
-        balanced_idx = rng.permutation(balanced_idx)
-
-        X_bal = normalize_fn(X[balanced_idx])
-        y_bal = y_int[balanced_idx]
-
-        return X_bal, y_bal
+        
+        # Use ALL abnormal cases
+        sampled_abnormal_indices = abnormal_idx.copy()
+        
+        # Combine into balanced dataset
+        balanced_indices = np.concatenate([sampled_normal_indices, sampled_abnormal_indices])
+        X_balanced = normalize_fn(X[balanced_indices])
+        
+        # Return integer labels
+        y_balanced_int = y_int[balanced_indices]
+        
+        return X_balanced, y_balanced_int

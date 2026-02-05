@@ -1,4 +1,3 @@
-from tabnanny import verbose
 import numpy as np
 from sklearn.metrics import (
     roc_auc_score, f1_score, precision_score,
@@ -26,51 +25,58 @@ class Evaluator:
 
     def evaluate_with_print(self, y_true, y_prob, verbose=True):
         """
-        Evaluate predictions and optionally print detailed metrics per threshold.
-        Returns metrics dict and collects scores for aggregation.
+        Evaluates abnormal detection performance.
+        y_true: integer labels (1 if abnormal, 0 if normal)
+        y_prob: probability of abnormal (class 0)
         """
-        # Calculate prediction stats
+
         if verbose:
             print(f"Predictions: min={y_prob.min():.3f}, max={y_prob.max():.3f}, "
                   f"mean={y_prob.mean():.3f}, std={y_prob.std():.3f}")
-        
-        # Calculate AUC
-        if len(np.unique(y_true)) < 2:
-            auc = np.nan
-            if verbose:
-                print("⚠️  AUC undefined (single-class fold)")
-        else:
+
+        # AUC (exact notebook logic)
+        try:
             auc = roc_auc_score(y_true, y_prob)
-        
-        # Evaluate at each threshold and collect metrics
-        fold_metrics = {
+            if verbose:
+                print(f"AUC: {auc:.3f}")
+        except Exception as e:
+            print(f"✗ AUC error: {e}")
+            auc = np.nan
+
+        fold_results = {
             "auc": auc,
             "thresholds": {},
             "y_true": y_true,
             "y_prob": y_prob
         }
-        
+
         for thr in self.thresholds:
             y_pred = (y_prob >= thr).astype(int)
-            f1 = f1_score(y_true, y_pred, zero_division=0)
             prec = precision_score(y_true, y_pred, zero_division=0)
             rec = recall_score(y_true, y_pred, zero_division=0)
-            sens = rec  # Sensitivity is same as Recall
+            f1 = f1_score(y_true, y_pred, zero_division=0)
+            sens = rec
             acc = accuracy_score(y_true, y_pred)
-            
-            fold_metrics["thresholds"][thr] = {
+
+            fold_results["thresholds"][thr] = {
                 "f1": f1,
                 "precision": prec,
                 "recall": rec,
                 "sensitivity": sens,
                 "accuracy": acc
             }
-            
+
             if verbose:
-                print(f"Thr: {thr:.3f} | F1: {f1:.3f} | Prec: {prec:.3f} | "
-                      f"Rec: {rec:.3f} | Sens: {sens:.3f} | Acc: {acc:.3f}")
-        
-        return fold_metrics
+                print(
+                    f"Thr: {thr:.3f} | "
+                    f"F1: {f1:.3f} | "
+                    f"Prec: {prec:.3f} | "
+                    f"Rec: {rec:.3f} | "
+                    f"Sens: {sens:.3f} | "
+                    f"Acc: {acc:.3f}"
+                )
+
+        return fold_results
 
     def report_paper_results(self, all_results, threshold=0.4):
         """
@@ -80,7 +86,7 @@ class Evaluator:
         f1_scores = []
         precision_scores = []
         recall_scores = []
-
+        sensitivity_scores = []
         for fold_result in all_results:
             auc_scores.append(fold_result.get("auc", np.nan))
             f1_scores.append(fold_result["thresholds"][threshold]["f1"])
