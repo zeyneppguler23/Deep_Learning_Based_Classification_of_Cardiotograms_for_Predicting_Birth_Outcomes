@@ -173,6 +173,60 @@ def plot_confusion_matrix(y_true, y_prob, threshold=0.5, save_dir=None, show=Tru
 
 
 # ---------------------------
+# Learning curves
+# ---------------------------
+def plot_learning_curve(train_auc, val_auc, epochs=None, model_name="model", save_dir=None, show=True):
+    """
+    Visualize learning curve: Training vs. Validation AUC.
+    Helpful for determining overfitting and model convergence.
+    
+    Parameters:
+    -----------
+    train_auc : array-like
+        Training AUC scores for each epoch
+    val_auc : array-like
+        Validation AUC scores for each epoch
+    epochs : array-like, optional
+        Epoch numbers (default: 1 to len(train_auc))
+    model_name : str
+        Name of the model for saving
+    save_dir : str or Path, optional
+        Directory to save the figure
+    show : bool
+        Whether to display the plot
+    """
+    if epochs is None:
+        epochs = np.arange(1, len(train_auc) + 1)
+    
+    fig = plt.figure(figsize=(10, 6))
+    plt.plot(epochs, train_auc, label='Training AUC', color='#1f77b4', linewidth=2)
+    plt.plot(epochs, val_auc, label='Validation AUC', color='#ff7f0e', linewidth=2)
+    
+    # Highlight potential overfitting zone if applicable
+    plt.title(f'{model_name} Learning Curve: Training vs. Validation AUC', fontsize=14)
+    plt.xlabel('Epochs', fontsize=12)
+    plt.ylabel('AUC Score', fontsize=12)
+    plt.legend(loc='lower right')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.ylim(0.4, 1.0)
+    
+    # Annotation for convergence point (at the last epoch)
+    if len(val_auc) > 0:
+        plt.annotate('Convergence Point', xy=(epochs[-1], val_auc[-1]), xytext=(epochs[-1] * 0.75, 0.6),
+                     arrowprops=dict(facecolor='black', shrink=0.05, width=1, headwidth=5))
+    
+    plt.tight_layout()
+    
+    if save_dir is not None:
+        save_dir = Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        _save_fig(fig, save_dir / f"{model_name}_learning_curve_auc.png")
+    
+    if show:
+        plt.show()
+
+
+# ---------------------------
 # Save tables
 # ---------------------------
 def save_metric_table(df, path="outputs/tables/threshold_metrics.csv"):
