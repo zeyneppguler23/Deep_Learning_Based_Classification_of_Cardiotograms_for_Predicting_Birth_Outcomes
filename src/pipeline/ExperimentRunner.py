@@ -4,7 +4,6 @@ from pipeline.trainer import CTGTrainer
 from pipeline.CrossValidator import CrossValidator
 from pipeline.evaluator import BinaryClassifierEvaluator
 
-
 class CTGExperiment:
     def __init__(
         self,
