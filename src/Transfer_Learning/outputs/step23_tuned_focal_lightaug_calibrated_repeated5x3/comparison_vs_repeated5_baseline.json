@@ -1,0 +1,18 @@
+{
+  "baseline_mean_balanced_acc": 0.6188768173468258,
+  "tuned_mean_raw_balanced_acc": 0.5634002718975175,
+  "tuned_mean_balanced_acc": 0.577351964556204,
+  "delta_balanced_acc_vs_baseline": -0.04152485279062179,
+  "delta_raw_balanced_acc_vs_baseline": -0.055476545449308245,
+  "delta_calibrated_vs_raw_balanced_acc": 0.013951692658686454,
+  "baseline_mean_macro_f1": 0.6055463418474155,
+  "tuned_mean_raw_macro_f1": 0.5689245605239794,
+  "tuned_mean_macro_f1": 0.5729646286860756,
+  "delta_macro_f1_vs_baseline": -0.032581713161339954,
+  "baseline_mean_recall_Mild": 0.6172655915451702,
+  "baseline_mean_recall_Severe": 0.5894203019203018,
+  "tuned_mean_recall_Mild": 0.7853723753382346,
+  "tuned_mean_recall_Severe": 0.484093684093684,
+  "mean_selected_severe_boost": 0.050666666666666665,
+  "mean_calibration_gain_balanced_acc": 0.013951692658686529
+}
