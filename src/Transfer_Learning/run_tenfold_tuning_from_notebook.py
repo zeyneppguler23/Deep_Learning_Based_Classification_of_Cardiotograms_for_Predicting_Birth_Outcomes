@@ -5,6 +5,7 @@ import importlib
 import gc
 from pathlib import Path
 
+import nbformat
 import numpy as np
 import pandas as pd
 
@@ -18,23 +19,26 @@ STOP_MARKERS = [
 ]
 
 
-def _load_notebook(path: Path) -> dict:
-    with path.open("r", encoding="utf-8") as notebook_file:
-        return json.load(notebook_file)
+def _load_notebook(path: Path):
+    return nbformat.read(path, as_version=4)
 
 
 
 def _execute_setup_cells(notebook):
-    namespace = {}
+    namespace = {"__name__": "__main__"}
+    cells = notebook.cells if hasattr(notebook, "cells") else notebook["cells"]
 
     import tensorflow as tf
     tf.keras.backend.clear_session()
 
-    for index, cell in enumerate(notebook.cells):
-        if cell.cell_type != "code":
+    for index, cell in enumerate(cells):
+        cell_type = cell.cell_type if hasattr(cell, "cell_type") else cell.get("cell_type")
+        if cell_type != "code":
             continue
 
-        source = "".join(cell.source)
+        source = cell.source if hasattr(cell, "source") else cell.get("source", "")
+        if isinstance(source, list):
+            source = "".join(source)
 
         # Skip empty cells
         if not source.strip():
