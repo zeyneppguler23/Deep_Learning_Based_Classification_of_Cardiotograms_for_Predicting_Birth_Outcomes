@@ -3,7 +3,6 @@ import os
 import sys
 import importlib
 import gc
-import subprocess
 from pathlib import Path
 
 import nbformat
@@ -18,35 +17,10 @@ STOP_MARKERS = [
     "STEP 2 + STEP 3 SOFTMAX WITH FIXED CLASS WEIGHTS",
     "FINAL SUMMARY",
 ]
-TRUNCATE_CELL_MARKERS = [
-    "model_test = build_model(",
-]
 
 
 def _load_notebook(path: Path):
     return nbformat.read(path, as_version=4)
-
-
-def _configure_tensorflow_runtime(tf) -> None:
-    gpus = tf.config.list_physical_devices("GPU")
-    for gpu in gpus:
-        try:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        except RuntimeError:
-            pass
-
-
-def _reset_tf_state(tf) -> None:
-    tf.keras.backend.clear_session()
-    gc.collect()
-
-
-def _strip_setup_side_effects(source: str) -> str:
-    for marker in TRUNCATE_CELL_MARKERS:
-        marker_index = source.find(marker)
-        if marker_index != -1:
-            return source[:marker_index].rstrip()
-    return source
 
 
 
@@ -55,8 +29,7 @@ def _execute_setup_cells(notebook):
     cells = notebook.cells if hasattr(notebook, "cells") else notebook["cells"]
 
     import tensorflow as tf
-    _configure_tensorflow_runtime(tf)
-    _reset_tf_state(tf)
+    tf.keras.backend.clear_session()
 
     for index, cell in enumerate(cells):
         cell_type = cell.cell_type if hasattr(cell, "cell_type") else cell.get("cell_type")
@@ -66,11 +39,6 @@ def _execute_setup_cells(notebook):
         source = cell.source if hasattr(cell, "source") else cell.get("source", "")
         if isinstance(source, list):
             source = "".join(source)
-
-        if any(marker in source for marker in STOP_MARKERS):
-            break
-
-        source = _strip_setup_side_effects(source)
 
         # Skip empty cells
         if not source.strip():
@@ -105,124 +73,7 @@ def _class_weights_to_slug(class_weights: dict) -> str:
 
 
 
-def _build_public_result(namespace: dict) -> dict:
-    return {
-        "best_current_weights": dict(namespace["best_current_weights"]),
-        "tenfold_cfg": dict(namespace["tenfold_cfg"]),
-        "class_weight_grid": list(namespace["class_weight_grid"]),
-        "label_smoothing_grid": list(namespace["label_smoothing_grid"]),
-        "calibration_boost_grid": list(namespace["calibration_boost_grid"]),
-        "tenfold_tuning_output_dir": str(namespace["tenfold_tuning_output_dir"]),
-        "tenfold_tuning_summary_df": namespace["tenfold_tuning_summary_df"],
-        "tenfold_tuning_summaries": list(namespace["tenfold_tuning_summaries"]),
-        "best_tenfold_run": dict(namespace["best_tenfold_run"]),
-    }
-
-
-def _jsonify(value):
-    if isinstance(value, dict):
-        return {str(key): _jsonify(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_jsonify(item) for item in value]
-    if isinstance(value, tuple):
-        return [_jsonify(item) for item in value]
-    if isinstance(value, Path):
-        return str(value)
-    if isinstance(value, np.generic):
-        return value.item()
-    return value
-
-
-def _serialize_public_result(result: dict, result_path: Path) -> None:
-    payload = dict(result)
-    payload["tenfold_tuning_summary_df"] = result["tenfold_tuning_summary_df"].to_dict(orient="records")
-    payload = _jsonify(payload)
-    result_path.parent.mkdir(parents=True, exist_ok=True)
-    with result_path.open("w", encoding="utf-8") as result_file:
-        json.dump(payload, result_file, indent=2)
-
-
-def _load_public_result(result_path: Path) -> dict:
-    with result_path.open("r", encoding="utf-8") as result_file:
-        payload = json.load(result_file)
-    payload["tenfold_tuning_summary_df"] = pd.DataFrame(payload["tenfold_tuning_summary_df"])
-    payload["tenfold_tuning_output_dir"] = Path(payload["tenfold_tuning_output_dir"])
-    return payload
-
-
-def _read_log_tail(log_path: Path, max_lines: int = 120) -> str:
-    if not log_path.exists():
-        return "<child log was not created>"
-    with log_path.open("r", encoding="utf-8", errors="replace") as log_file:
-        lines = log_file.readlines()
-    tail = lines[-max_lines:]
-    return "".join(tail).strip() or "<child log was empty>"
-
-
-def _launch_child_process(command, env, log_path: Path) -> subprocess.CompletedProcess:
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("w", encoding="utf-8") as child_log:
-        return subprocess.run(
-            command,
-            check=False,
-            cwd=str(SCRIPT_DIR),
-            env=env,
-            stdout=child_log,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-
-
-def _run_in_subprocess() -> dict:
-    result_path = OUTPUT_DIR / f"_run_result_{os.getpid()}.json"
-    log_path = OUTPUT_DIR / f"_run_log_{os.getpid()}_gpu.txt"
-    env = os.environ.copy()
-    env["CTG_TENFOLD_CHILD"] = "1"
-    command = [
-        sys.executable,
-        str(Path(__file__).resolve()),
-        "--child-run",
-        str(result_path),
-    ]
-    completed = _launch_child_process(command, env, log_path)
-    if completed.returncode != 0:
-        log_tail = _read_log_tail(log_path)
-        if "cuda_error_invalid_handle" in log_tail.lower():
-            print("GPU child failed with CUDA_ERROR_INVALID_HANDLE; retrying full sweep in CPU-only mode.")
-            cpu_env = dict(env)
-            cpu_env["CUDA_VISIBLE_DEVICES"] = "-1"
-            cpu_env["CTG_TENFOLD_FORCE_CPU"] = "1"
-            cpu_log_path = OUTPUT_DIR / f"_run_log_{os.getpid()}_cpu.txt"
-            completed = _launch_child_process(command, cpu_env, cpu_log_path)
-            if completed.returncode == 0:
-                log_path = cpu_log_path
-            else:
-                cpu_log_tail = _read_log_tail(cpu_log_path)
-                raise RuntimeError(
-                    "Child tenfold sweep failed on GPU with CUDA_ERROR_INVALID_HANDLE and also failed in CPU-only retry. "
-                    f"GPU log: {log_path}\nCPU log: {cpu_log_path}\n\n"
-                    "Last CPU child log lines:\n"
-                    f"{cpu_log_tail}"
-                )
-        else:
-            raise RuntimeError(
-                "Child tenfold sweep failed. "
-                f"Exit code: {completed.returncode}. "
-                f"Log: {log_path}\n\n"
-                "Last child log lines:\n"
-                f"{log_tail}"
-            )
-    try:
-        return _load_public_result(result_path)
-    finally:
-        if result_path.exists():
-            result_path.unlink()
-        for candidate in OUTPUT_DIR.glob(f"_run_log_{os.getpid()}_*.txt"):
-            candidate.unlink()
-
-
-
-def _run_in_process() -> dict:
+def run() -> dict:
     os.chdir(SCRIPT_DIR)
     if str(SCRIPT_DIR) not in sys.path:
         sys.path.insert(0, str(SCRIPT_DIR))
@@ -256,13 +107,11 @@ def _run_in_process() -> dict:
     combined_summary_frames = []
     combined_summaries = []
     best_run = None
-    tf_module = namespace["tf"]
 
     try:
         for class_weights in class_weight_grid:
             weight_slug = _class_weights_to_slug(class_weights)
             weight_output_dir = OUTPUT_DIR / weight_slug
-            _reset_tf_state(tf_module)
             namespace["compute_class_weights_from_y"] = _manual_class_weight_resolver_factory(
                 namespace["NUM_CLASSES"],
                 class_weights,
@@ -323,10 +172,10 @@ def _run_in_process() -> dict:
                 if current_rank > best_rank:
                     best_run = dict(weight_best_run)
 
-            _reset_tf_state(tf_module)
+            gc.collect()
+            namespace["tf"].keras.backend.clear_session()
     finally:
         namespace["compute_class_weights_from_y"] = original_compute_class_weights
-        _reset_tf_state(tf_module)
 
     summary_df = pd.concat(combined_summary_frames, ignore_index=True).sort_values(
         [
@@ -354,18 +203,7 @@ def _run_in_process() -> dict:
     return namespace
 
 
-def run(use_subprocess: bool = True) -> dict:
-    if use_subprocess and os.environ.get("CTG_TENFOLD_CHILD") != "1":
-        return _run_in_subprocess()
-    return _build_public_result(_run_in_process())
-
-
 if __name__ == "__main__":
-    if len(sys.argv) >= 3 and sys.argv[1] == "--child-run":
-        child_result = _build_public_result(_run_in_process())
-        _serialize_public_result(child_result, Path(sys.argv[2]))
-        result = child_result
-    else:
-        result = run()
+    result = run()
     print("\nBest run:")
     print(result["best_tenfold_run"])

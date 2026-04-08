@@ -7,11 +7,6 @@ import numpy as np
 import pandas as pd
 
 
-def reset_tf_state(tf):
-    tf.keras.backend.clear_session()
-    gc.collect()
-
-
 def class_weights_to_slug(class_weights):
     return "cw_" + "_".join(str(float(class_weights[class_idx])).replace(".", "p") for class_idx in sorted(class_weights))
 
@@ -146,21 +141,9 @@ def is_resource_exhaustion_error(error, tf):
     return "resourceexhausted" in message or "resource exhausted" in message or "oom" in message
 
 
-def is_cuda_invalid_handle_error(error) -> bool:
-    message = str(error).lower()
-    return "cuda_error_invalid_handle" in message or "invalid_handle" in message
-
-
-def build_model_with_runtime_fallback(build_model, tf, **kwargs):
-    try:
-        return build_model(**kwargs)
-    except Exception as error:
-        if not is_cuda_invalid_handle_error(error):
-            raise
-        print("  CUDA invalid handle during model construction; retrying build on CPU.")
-        reset_tf_state(tf)
-        with tf.device("/CPU:0"):
-            return build_model(**kwargs)
+def reset_tf_state(tf):
+    tf.keras.backend.clear_session()
+    gc.collect()
 
 
 def run_grouped_cv_with_oof(
@@ -291,19 +274,18 @@ def run_grouped_cv_with_oof(
             reset_tf_state(tf)
 
             n_clin = n_clinical_features if use_clinical else 0
-            model = build_model_with_runtime_fallback(
-                build_model,
-                tf,
-                input_length=cfg_attempt["segment_length"],
-                num_classes=num_classes,
-                temporal_filters=cfg_attempt["temporal_filters"],
-                temporal_kernel=cfg_attempt["temporal_kernel"],
-                separable_filters=cfg_attempt["separable_filters"],
-                separable_kernels=cfg_attempt["separable_kernels"],
-                projection_filters=cfg_attempt["projection_filters"],
-                dropout_rate=cfg_attempt["dropout_rate"],
-                n_clinical_features=n_clin,
-            )
+            with tf.device("/CPU:0"):
+                model = build_model(
+                    input_length=cfg_attempt["segment_length"],
+                    num_classes=num_classes,
+                    temporal_filters=cfg_attempt["temporal_filters"],
+                    temporal_kernel=cfg_attempt["temporal_kernel"],
+                    separable_filters=cfg_attempt["separable_filters"],
+                    separable_kernels=cfg_attempt["separable_kernels"],
+                    projection_filters=cfg_attempt["projection_filters"],
+                    dropout_rate=cfg_attempt["dropout_rate"],
+                    n_clinical_features=n_clin,
+                )
 
             try:
                 if train_batch_size != initial_train_batch_size:
@@ -464,7 +446,6 @@ def run_tenfold_label_smoothing_sweep(
         run_slug = f"ls_{label_smoothing:.2f}".replace(".", "p")
         run_output_dir = output_root / run_slug
         run_output_dir.mkdir(parents=True, exist_ok=True)
-        reset_tf_state(tf)
 
         cfg_run = dict(cfg_base)
         cfg_run["n_splits"] = 10
@@ -576,11 +557,12 @@ def run_tenfold_label_smoothing_sweep(
         )
         tenfold_tuning_summaries.append(run_summary)
 
+        reset_tf_state(tf)
+
         print("\nRun complete:")
         print(f"  Label smoothing:          {label_smoothing:.2f}")
         print(f"  Raw OOF balanced acc:     {raw_metrics['balanced_accuracy']:.4f}")
         print(f"  Calibrated OOF bal acc:   {calibrated_metrics['balanced_accuracy']:.4f}")
-        reset_tf_state(tf)
         print(f"  Best OOF Severe boost:    {best_boost:.2f}")
         print(f"  Results saved to:         {run_output_dir}")
         gc.collect()
