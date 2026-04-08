@@ -24,27 +24,29 @@ def _load_notebook(path: Path) -> dict:
 
 
 
-def _execute_setup_cells(notebook: dict) -> dict:
-    namespace = {
-        "__name__": "__main__",
-        "__file__": str(NOTEBOOK_PATH),
-    }
+def _execute_setup_cells(notebook):
+    namespace = {}
 
-    for index, cell in enumerate(notebook.get("cells", []), start=1):
-        if cell.get("cell_type") != "code":
+    import tensorflow as tf
+    tf.keras.backend.clear_session()
+
+    for index, cell in enumerate(notebook.cells):
+        if cell.cell_type != "code":
             continue
 
-        source = "".join(cell.get("source", []))
-        if any(marker in source for marker in STOP_MARKERS):
-            break
+        source = "".join(cell.source)
+
+        # Skip empty cells
         if not source.strip():
             continue
 
         code = compile(source, f"{NOTEBOOK_PATH.name}:cell_{index}", "exec")
-        exec(code, namespace)
+
+        # Force setup-time execution onto CPU
+        with tf.device("/CPU:0"):
+            exec(code, namespace)
 
     return namespace
-
 
 
 def _manual_class_weight_resolver_factory(num_classes: int, manual_weights: dict):
