@@ -146,6 +146,23 @@ def is_resource_exhaustion_error(error, tf):
     return "resourceexhausted" in message or "resource exhausted" in message or "oom" in message
 
 
+def is_cuda_invalid_handle_error(error) -> bool:
+    message = str(error).lower()
+    return "cuda_error_invalid_handle" in message or "invalid_handle" in message
+
+
+def build_model_with_runtime_fallback(build_model, tf, **kwargs):
+    try:
+        return build_model(**kwargs)
+    except Exception as error:
+        if not is_cuda_invalid_handle_error(error):
+            raise
+        print("  CUDA invalid handle during model construction; retrying build on CPU.")
+        reset_tf_state(tf)
+        with tf.device("/CPU:0"):
+            return build_model(**kwargs)
+
+
 def run_grouped_cv_with_oof(
     *,
     X,
@@ -274,7 +291,9 @@ def run_grouped_cv_with_oof(
             reset_tf_state(tf)
 
             n_clin = n_clinical_features if use_clinical else 0
-            model = build_model(
+            model = build_model_with_runtime_fallback(
+                build_model,
+                tf,
                 input_length=cfg_attempt["segment_length"],
                 num_classes=num_classes,
                 temporal_filters=cfg_attempt["temporal_filters"],
