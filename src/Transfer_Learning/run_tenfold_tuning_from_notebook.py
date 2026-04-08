@@ -17,6 +17,10 @@ STOP_MARKERS = [
     "STEP 2 + STEP 3 SOFTMAX WITH FIXED CLASS WEIGHTS",
     "FINAL SUMMARY",
 ]
+SKIP_CELL_MARKERS = [
+    "model_test = build_model(",
+    "model_test.summary()",
+]
 
 
 def _load_notebook(path: Path):
@@ -57,6 +61,8 @@ def _execute_setup_cells(notebook):
 
         if any(marker in source for marker in STOP_MARKERS):
             break
+        if any(marker in source for marker in SKIP_CELL_MARKERS):
+            continue
 
         # Skip empty cells
         if not source.strip():
