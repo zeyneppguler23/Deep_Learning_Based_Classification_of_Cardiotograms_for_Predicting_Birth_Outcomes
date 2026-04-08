@@ -7,6 +7,11 @@ import numpy as np
 import pandas as pd
 
 
+def reset_tf_state(tf):
+    tf.keras.backend.clear_session()
+    gc.collect()
+
+
 def class_weights_to_slug(class_weights):
     return "cw_" + "_".join(str(float(class_weights[class_idx])).replace(".", "p") for class_idx in sorted(class_weights))
 
@@ -266,8 +271,7 @@ def run_grouped_cv_with_oof(
             cfg_attempt["scratch_batch"] = int(train_batch_size)
             cfg_attempt["scratch_eval_batch"] = int(eval_batch_size)
 
-            tf.keras.backend.clear_session()
-            gc.collect()
+            reset_tf_state(tf)
 
             n_clin = n_clinical_features if use_clinical else 0
             model = build_model(
@@ -318,8 +322,7 @@ def run_grouped_cv_with_oof(
                     f"  Resource exhaustion for fold {fold_idx + 1} at scratch_batch={train_batch_size}."
                 )
                 model = None
-                tf.keras.backend.clear_session()
-                gc.collect()
+                reset_tf_state(tf)
 
         if y_proba_val is None:
             raise last_training_error
@@ -362,8 +365,7 @@ def run_grouped_cv_with_oof(
         del clin_val
         del clin_train_n
         del clin_val_n
-        gc.collect()
-        tf.keras.backend.clear_session()
+        reset_tf_state(tf)
 
     oof_step_probabilities = pd.concat(oof_step_tables, ignore_index=True)
     raw_oof_metrics = compute_step_probability_metrics(oof_step_probabilities, compute_metrics)
@@ -443,6 +445,7 @@ def run_tenfold_label_smoothing_sweep(
         run_slug = f"ls_{label_smoothing:.2f}".replace(".", "p")
         run_output_dir = output_root / run_slug
         run_output_dir.mkdir(parents=True, exist_ok=True)
+        reset_tf_state(tf)
 
         cfg_run = dict(cfg_base)
         cfg_run["n_splits"] = 10
@@ -558,6 +561,7 @@ def run_tenfold_label_smoothing_sweep(
         print(f"  Label smoothing:          {label_smoothing:.2f}")
         print(f"  Raw OOF balanced acc:     {raw_metrics['balanced_accuracy']:.4f}")
         print(f"  Calibrated OOF bal acc:   {calibrated_metrics['balanced_accuracy']:.4f}")
+        reset_tf_state(tf)
         print(f"  Best OOF Severe boost:    {best_boost:.2f}")
         print(f"  Results saved to:         {run_output_dir}")
         gc.collect()

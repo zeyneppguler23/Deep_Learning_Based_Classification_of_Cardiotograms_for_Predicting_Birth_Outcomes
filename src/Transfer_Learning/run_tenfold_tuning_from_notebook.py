@@ -23,13 +23,28 @@ def _load_notebook(path: Path):
     return nbformat.read(path, as_version=4)
 
 
+def _configure_tensorflow_runtime(tf) -> None:
+    gpus = tf.config.list_physical_devices("GPU")
+    for gpu in gpus:
+        try:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        except RuntimeError:
+            pass
+
+
+def _reset_tf_state(tf) -> None:
+    tf.keras.backend.clear_session()
+    gc.collect()
+
+
 
 def _execute_setup_cells(notebook):
     namespace = {"__name__": "__main__"}
     cells = notebook.cells if hasattr(notebook, "cells") else notebook["cells"]
 
     import tensorflow as tf
-    tf.keras.backend.clear_session()
+    _configure_tensorflow_runtime(tf)
+    _reset_tf_state(tf)
 
     for index, cell in enumerate(cells):
         cell_type = cell.cell_type if hasattr(cell, "cell_type") else cell.get("cell_type")
@@ -107,11 +122,13 @@ def run() -> dict:
     combined_summary_frames = []
     combined_summaries = []
     best_run = None
+    tf_module = namespace["tf"]
 
     try:
         for class_weights in class_weight_grid:
             weight_slug = _class_weights_to_slug(class_weights)
             weight_output_dir = OUTPUT_DIR / weight_slug
+            _reset_tf_state(tf_module)
             namespace["compute_class_weights_from_y"] = _manual_class_weight_resolver_factory(
                 namespace["NUM_CLASSES"],
                 class_weights,
@@ -172,10 +189,10 @@ def run() -> dict:
                 if current_rank > best_rank:
                     best_run = dict(weight_best_run)
 
-            gc.collect()
-            namespace["tf"].keras.backend.clear_session()
+            _reset_tf_state(tf_module)
     finally:
         namespace["compute_class_weights_from_y"] = original_compute_class_weights
+        _reset_tf_state(tf_module)
 
     summary_df = pd.concat(combined_summary_frames, ignore_index=True).sort_values(
         [
