@@ -17,9 +17,8 @@ STOP_MARKERS = [
     "STEP 2 + STEP 3 SOFTMAX WITH FIXED CLASS WEIGHTS",
     "FINAL SUMMARY",
 ]
-SKIP_CELL_MARKERS = [
+TRUNCATE_CELL_MARKERS = [
     "model_test = build_model(",
-    "model_test.summary()",
 ]
 
 
@@ -39,6 +38,14 @@ def _configure_tensorflow_runtime(tf) -> None:
 def _reset_tf_state(tf) -> None:
     tf.keras.backend.clear_session()
     gc.collect()
+
+
+def _strip_setup_side_effects(source: str) -> str:
+    for marker in TRUNCATE_CELL_MARKERS:
+        marker_index = source.find(marker)
+        if marker_index != -1:
+            return source[:marker_index].rstrip()
+    return source
 
 
 
@@ -61,8 +68,8 @@ def _execute_setup_cells(notebook):
 
         if any(marker in source for marker in STOP_MARKERS):
             break
-        if any(marker in source for marker in SKIP_CELL_MARKERS):
-            continue
+
+        source = _strip_setup_side_effects(source)
 
         # Skip empty cells
         if not source.strip():
