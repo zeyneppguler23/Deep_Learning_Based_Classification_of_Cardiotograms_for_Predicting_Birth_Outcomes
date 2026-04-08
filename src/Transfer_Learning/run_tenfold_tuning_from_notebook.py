@@ -150,8 +150,18 @@ def _load_public_result(result_path: Path) -> dict:
     return payload
 
 
+def _read_log_tail(log_path: Path, max_lines: int = 120) -> str:
+    if not log_path.exists():
+        return "<child log was not created>"
+    with log_path.open("r", encoding="utf-8", errors="replace") as log_file:
+        lines = log_file.readlines()
+    tail = lines[-max_lines:]
+    return "".join(tail).strip() or "<child log was empty>"
+
+
 def _run_in_subprocess() -> dict:
     result_path = OUTPUT_DIR / f"_run_result_{os.getpid()}.json"
+    log_path = OUTPUT_DIR / f"_run_log_{os.getpid()}.txt"
     env = os.environ.copy()
     env["CTG_TENFOLD_CHILD"] = "1"
     command = [
@@ -160,12 +170,33 @@ def _run_in_subprocess() -> dict:
         "--child-run",
         str(result_path),
     ]
-    subprocess.run(command, check=True, cwd=str(SCRIPT_DIR), env=env)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("w", encoding="utf-8") as child_log:
+        completed = subprocess.run(
+            command,
+            check=False,
+            cwd=str(SCRIPT_DIR),
+            env=env,
+            stdout=child_log,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+    if completed.returncode != 0:
+        log_tail = _read_log_tail(log_path)
+        raise RuntimeError(
+            "Child tenfold sweep failed. "
+            f"Exit code: {completed.returncode}. "
+            f"Log: {log_path}\n\n"
+            "Last child log lines:\n"
+            f"{log_tail}"
+        )
     try:
         return _load_public_result(result_path)
     finally:
         if result_path.exists():
             result_path.unlink()
+        if log_path.exists():
+            log_path.unlink()
 
 
 
