@@ -55,6 +55,9 @@ def _execute_setup_cells(notebook):
         if isinstance(source, list):
             source = "".join(source)
 
+        if any(marker in source for marker in STOP_MARKERS):
+            break
+
         # Skip empty cells
         if not source.strip():
             continue
