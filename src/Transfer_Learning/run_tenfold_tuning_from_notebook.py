@@ -3,6 +3,7 @@ import os
 import sys
 import importlib
 import gc
+import subprocess
 from pathlib import Path
 
 import nbformat
@@ -104,7 +105,71 @@ def _class_weights_to_slug(class_weights: dict) -> str:
 
 
 
-def run() -> dict:
+def _build_public_result(namespace: dict) -> dict:
+    return {
+        "best_current_weights": dict(namespace["best_current_weights"]),
+        "tenfold_cfg": dict(namespace["tenfold_cfg"]),
+        "class_weight_grid": list(namespace["class_weight_grid"]),
+        "label_smoothing_grid": list(namespace["label_smoothing_grid"]),
+        "calibration_boost_grid": list(namespace["calibration_boost_grid"]),
+        "tenfold_tuning_output_dir": str(namespace["tenfold_tuning_output_dir"]),
+        "tenfold_tuning_summary_df": namespace["tenfold_tuning_summary_df"],
+        "tenfold_tuning_summaries": list(namespace["tenfold_tuning_summaries"]),
+        "best_tenfold_run": dict(namespace["best_tenfold_run"]),
+    }
+
+
+def _jsonify(value):
+    if isinstance(value, dict):
+        return {str(key): _jsonify(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_jsonify(item) for item in value]
+    if isinstance(value, tuple):
+        return [_jsonify(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
+def _serialize_public_result(result: dict, result_path: Path) -> None:
+    payload = dict(result)
+    payload["tenfold_tuning_summary_df"] = result["tenfold_tuning_summary_df"].to_dict(orient="records")
+    payload = _jsonify(payload)
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    with result_path.open("w", encoding="utf-8") as result_file:
+        json.dump(payload, result_file, indent=2)
+
+
+def _load_public_result(result_path: Path) -> dict:
+    with result_path.open("r", encoding="utf-8") as result_file:
+        payload = json.load(result_file)
+    payload["tenfold_tuning_summary_df"] = pd.DataFrame(payload["tenfold_tuning_summary_df"])
+    payload["tenfold_tuning_output_dir"] = Path(payload["tenfold_tuning_output_dir"])
+    return payload
+
+
+def _run_in_subprocess() -> dict:
+    result_path = OUTPUT_DIR / f"_run_result_{os.getpid()}.json"
+    env = os.environ.copy()
+    env["CTG_TENFOLD_CHILD"] = "1"
+    command = [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "--child-run",
+        str(result_path),
+    ]
+    subprocess.run(command, check=True, cwd=str(SCRIPT_DIR), env=env)
+    try:
+        return _load_public_result(result_path)
+    finally:
+        if result_path.exists():
+            result_path.unlink()
+
+
+
+def _run_in_process() -> dict:
     os.chdir(SCRIPT_DIR)
     if str(SCRIPT_DIR) not in sys.path:
         sys.path.insert(0, str(SCRIPT_DIR))
@@ -236,7 +301,18 @@ def run() -> dict:
     return namespace
 
 
+def run(use_subprocess: bool = True) -> dict:
+    if use_subprocess and os.environ.get("CTG_TENFOLD_CHILD") != "1":
+        return _run_in_subprocess()
+    return _build_public_result(_run_in_process())
+
+
 if __name__ == "__main__":
-    result = run()
+    if len(sys.argv) >= 3 and sys.argv[1] == "--child-run":
+        child_result = _build_public_result(_run_in_process())
+        _serialize_public_result(child_result, Path(sys.argv[2]))
+        result = child_result
+    else:
+        result = run()
     print("\nBest run:")
     print(result["best_tenfold_run"])
