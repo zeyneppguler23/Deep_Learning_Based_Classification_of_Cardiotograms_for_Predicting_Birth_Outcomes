@@ -70,6 +70,15 @@ def _load_child_result(result_path: Path) -> dict:
     return payload
 
 
+def _read_log_tail(log_path: Path, max_lines: int = 120) -> str:
+    if not log_path.exists():
+        return "<child log was not created>"
+    with log_path.open("r", encoding="utf-8", errors="replace") as log_file:
+        lines = log_file.readlines()
+    tail = lines[-max_lines:]
+    return "".join(tail).strip() or "<child log was empty>"
+
+
 def _strip_setup_side_effects(source: str) -> str:
     for marker in TRUNCATE_CELL_MARKERS:
         marker_index = source.find(marker)
@@ -218,6 +227,7 @@ def _run_single_experiment_in_child(class_weights: dict, label_smoothing: float,
 
 
 def _launch_child_experiment(class_weights: dict, label_smoothing: float, result_path: Path) -> dict:
+    log_path = result_path.with_suffix(".log")
     command = [
         sys.executable,
         str(Path(__file__).resolve()),
@@ -230,17 +240,33 @@ def _launch_child_experiment(class_weights: dict, label_smoothing: float, result
         "--label-smoothing",
         str(float(label_smoothing)),
     ]
-    completed = subprocess.run(command, check=False, cwd=str(SCRIPT_DIR))
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    with log_path.open("w", encoding="utf-8") as child_log:
+        completed = subprocess.run(
+            command,
+            check=False,
+            cwd=str(SCRIPT_DIR),
+            env=env,
+            stdout=child_log,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
     if completed.returncode != 0:
+        log_tail = _read_log_tail(log_path)
         raise RuntimeError(
             "Single experiment child process failed for "
-            f"weights={class_weights}, label_smoothing={label_smoothing}."
+            f"weights={class_weights}, label_smoothing={label_smoothing}. "
+            f"Log: {log_path}\n\nLast child log lines:\n{log_tail}"
         )
     try:
         return _load_child_result(result_path)
     finally:
         if result_path.exists():
             result_path.unlink()
+        if log_path.exists():
+            log_path.unlink()
 
 
 def run() -> dict:
