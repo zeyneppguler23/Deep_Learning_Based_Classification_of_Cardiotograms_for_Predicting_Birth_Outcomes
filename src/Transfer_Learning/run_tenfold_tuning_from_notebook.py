@@ -353,8 +353,6 @@ def _launch_child_experiment(class_weights: dict, label_smoothing: float, result
     try:
         return _load_child_result(result_path)
     finally:
-        if result_path.exists():
-            result_path.unlink()
         if log_path.exists():
             log_path.unlink()
 
@@ -366,12 +364,39 @@ def run() -> dict:
     cfg_base = None
     child_result_dir = OUTPUT_DIR / "_child_runs"
 
+    total = len(CLASS_WEIGHT_GRID) * len(LABEL_SMOOTHING_GRID)
+    done = 0
+
     for class_weights in CLASS_WEIGHT_GRID:
         for label_smoothing in LABEL_SMOOTHING_GRID:
             weight_slug = _class_weights_to_slug(class_weights)
             result_slug = f"{weight_slug}__ls_{float(label_smoothing):.2f}".replace(".", "p")
             result_path = child_result_dir / f"{result_slug}.json"
-            child_result = _launch_child_experiment(class_weights, label_smoothing, result_path)
+
+            # ---- Resume support: skip if result already on disk ----------
+            if result_path.exists():
+                try:
+                    child_result = _load_child_result(result_path)
+                    done += 1
+                    print(
+                        f"\n>>> RESUME: loaded cached result for "
+                        f"{weight_slug} ls={label_smoothing} "
+                        f"({done}/{total} experiments)\n"
+                    )
+                except Exception as exc:
+                    print(
+                        f"\n>>> Cached result {result_path} is corrupt "
+                        f"({exc}), re-running experiment.\n"
+                    )
+                    result_path.unlink(missing_ok=True)
+                    child_result = None
+            else:
+                child_result = None
+
+            if child_result is None:
+                child_result = _launch_child_experiment(class_weights, label_smoothing, result_path)
+                done += 1
+                print(f"\n>>> Experiment {done}/{total} completed.\n")
 
             if cfg_base is None:
                 cfg_base = dict(child_result["cfg_base"])
@@ -402,6 +427,11 @@ def run() -> dict:
                 )
                 if current_rank > best_rank:
                     best_run = dict(weight_best_run)
+
+            # ---- Save incremental summary after each experiment ----------
+            _partial = pd.concat(combined_summary_frames, ignore_index=True)
+            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+            _partial.to_csv(OUTPUT_DIR / "sweep_partial_progress.csv", index=False)
 
     summary_df = pd.concat(combined_summary_frames, ignore_index=True).sort_values(
         [
