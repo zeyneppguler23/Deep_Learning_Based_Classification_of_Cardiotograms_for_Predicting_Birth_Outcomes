@@ -198,9 +198,7 @@ def _execute_setup_cells(notebook):
             continue
 
         code = compile(source, f"{NOTEBOOK_PATH.name}:cell_{index}", "exec")
-
-        with tf.device("/CPU:0"):
-            exec(code, namespace)
+        exec(code, namespace)
 
     return namespace
 

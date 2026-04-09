@@ -274,18 +274,17 @@ def run_grouped_cv_with_oof(
             reset_tf_state(tf)
 
             n_clin = n_clinical_features if use_clinical else 0
-            with tf.device("/CPU:0"):
-                model = build_model(
-                    input_length=cfg_attempt["segment_length"],
-                    num_classes=num_classes,
-                    temporal_filters=cfg_attempt["temporal_filters"],
-                    temporal_kernel=cfg_attempt["temporal_kernel"],
-                    separable_filters=cfg_attempt["separable_filters"],
-                    separable_kernels=cfg_attempt["separable_kernels"],
-                    projection_filters=cfg_attempt["projection_filters"],
-                    dropout_rate=cfg_attempt["dropout_rate"],
-                    n_clinical_features=n_clin,
-                )
+            model = build_model(
+                input_length=cfg_attempt["segment_length"],
+                num_classes=num_classes,
+                temporal_filters=cfg_attempt["temporal_filters"],
+                temporal_kernel=cfg_attempt["temporal_kernel"],
+                separable_filters=cfg_attempt["separable_filters"],
+                separable_kernels=cfg_attempt["separable_kernels"],
+                projection_filters=cfg_attempt["projection_filters"],
+                dropout_rate=cfg_attempt["dropout_rate"],
+                n_clinical_features=n_clin,
+            )
 
             try:
                 if train_batch_size != initial_train_batch_size:
