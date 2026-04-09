@@ -327,17 +327,23 @@ def _launch_child_experiment(class_weights: dict, label_smoothing: float, result
     env["PYTHONUNBUFFERED"] = "1"
     if not _probe_gpu_usable():
         env["CUDA_VISIBLE_DEVICES"] = ""
+    # Stream child output live (to notebook) while also saving to log file.
+    proc = subprocess.Popen(
+        command,
+        cwd=str(SCRIPT_DIR),
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,          # line-buffered
+    )
     with log_path.open("w", encoding="utf-8") as child_log:
-        completed = subprocess.run(
-            command,
-            check=False,
-            cwd=str(SCRIPT_DIR),
-            env=env,
-            stdout=child_log,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-    if completed.returncode != 0:
+        for line in proc.stdout:
+            child_log.write(line)
+            sys.stdout.write(line)
+            sys.stdout.flush()
+    returncode = proc.wait()
+    if returncode != 0:
         log_tail = _read_log_tail(log_path)
         raise RuntimeError(
             "Single experiment child process failed for "
