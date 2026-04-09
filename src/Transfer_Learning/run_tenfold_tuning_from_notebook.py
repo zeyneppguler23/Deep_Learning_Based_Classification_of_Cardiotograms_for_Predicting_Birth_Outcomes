@@ -13,6 +13,52 @@ import pandas as pd
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 NOTEBOOK_PATH = SCRIPT_DIR / "ten_min_segment_pipeline_v10.4.ipynb"
+
+# ---------------------------------------------------------------------------
+# GPU compatibility probe – cached after first call
+# ---------------------------------------------------------------------------
+_GPU_USABLE: bool | None = None
+
+
+def _probe_gpu_usable() -> bool:
+    """One-shot subprocess probe: can TF execute a trivial GPU kernel?
+
+    Runs a tiny child process that imports TF and does ``tf.constant(1.0)``.
+    If the GPU driver / PTX is incompatible the op will raise; we catch that
+    and force all subsequent experiment children onto CPU.
+    """
+    global _GPU_USABLE
+    if _GPU_USABLE is not None:
+        return _GPU_USABLE
+
+    probe_code = (
+        "import os; os.environ['TF_CPP_MIN_LOG_LEVEL']='3'; "
+        "import tensorflow as tf; "
+        "x = tf.constant(1.0); "
+        "y = x + x; "
+        "print('GPU_OK')"
+    )
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", probe_code],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        _GPU_USABLE = result.returncode == 0 and "GPU_OK" in result.stdout
+    except Exception:
+        _GPU_USABLE = False
+
+    if _GPU_USABLE:
+        print("GPU probe: OK – experiments will use GPU.")
+    else:
+        print(
+            "WARNING: GPU probe failed (TF cannot execute kernels on this GPU). "
+            "All experiment children will run on CPU.  "
+            "Consider upgrading TensorFlow to a version with Blackwell / "
+            "compute-capability-12.0 support."
+        )
+    return _GPU_USABLE
 OUTPUT_DIR = SCRIPT_DIR / "outputs" / "step23_softmax_tenfold_tuning"
 STOP_MARKERS = [
     "Running fixed class-weight experiment",
@@ -243,6 +289,8 @@ def _launch_child_experiment(class_weights: dict, label_smoothing: float, result
     result_path.parent.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
+    if not _probe_gpu_usable():
+        env["CUDA_VISIBLE_DEVICES"] = ""
     with log_path.open("w", encoding="utf-8") as child_log:
         completed = subprocess.run(
             command,
