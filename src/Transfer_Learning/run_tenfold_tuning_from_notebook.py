@@ -24,8 +24,10 @@ def _probe_gpu_usable() -> bool:
     """One-shot subprocess probe: can TF execute a trivial GPU kernel?
 
     Runs a tiny child process that imports TF and does ``tf.constant(1.0)``.
-    If the GPU driver / PTX is incompatible the op will raise; we catch that
-    and force all subsequent experiment children onto CPU.
+    If the GPU driver / PTX is incompatible the op will raise.  Before
+    falling back to CPU we attempt ONE ``pip install --upgrade tensorflow``
+    and re-probe — newer TF versions ship CUDA kernels for Blackwell /
+    compute-capability 12.0.
     """
     global _GPU_USABLE
     if _GPU_USABLE is not None:
@@ -34,29 +36,65 @@ def _probe_gpu_usable() -> bool:
     probe_code = (
         "import os; os.environ['TF_CPP_MIN_LOG_LEVEL']='3'; "
         "import tensorflow as tf; "
+        "print('TF_VERSION=' + tf.__version__); "
+        "gpus = tf.config.list_physical_devices('GPU'); "
+        "print('GPU_COUNT=' + str(len(gpus))); "
         "x = tf.constant(1.0); "
         "y = x + x; "
         "print('GPU_OK')"
     )
-    try:
-        result = subprocess.run(
-            [sys.executable, "-c", probe_code],
+
+    def _run_probe() -> tuple[bool, str]:
+        try:
+            result = subprocess.run(
+                [sys.executable, "-c", probe_code],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            ok = result.returncode == 0 and "GPU_OK" in result.stdout
+            return ok, result.stdout + result.stderr
+        except Exception as exc:
+            return False, str(exc)
+
+    ok, output = _run_probe()
+
+    if not ok:
+        # ------------------------------------------------------------------
+        # Attempt a TF upgrade – child subprocesses will pick up the new
+        # version even though the *parent* keeps its already-loaded TF.
+        # ------------------------------------------------------------------
+        print(
+            "GPU probe FAILED with current TensorFlow.  "
+            "Attempting `pip install --upgrade tensorflow` …"
+        )
+        upgrade = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-q", "--upgrade", "tensorflow"],
             capture_output=True,
             text=True,
-            timeout=180,
+            timeout=600,
         )
-        _GPU_USABLE = result.returncode == 0 and "GPU_OK" in result.stdout
-    except Exception:
-        _GPU_USABLE = False
+        if upgrade.returncode == 0:
+            print("TensorFlow upgrade complete – re-probing GPU …")
+            ok, output = _run_probe()
+        else:
+            print("TensorFlow upgrade failed:\n" + (upgrade.stderr or upgrade.stdout)[-500:])
+
+    _GPU_USABLE = ok
 
     if _GPU_USABLE:
-        print("GPU probe: OK – experiments will use GPU.")
+        # Extract TF version from probe output for the log
+        for line in output.splitlines():
+            if line.startswith("TF_VERSION="):
+                print(f"GPU probe: OK (TF {line.split('=', 1)[1]}) – experiments will use GPU.")
+                break
+        else:
+            print("GPU probe: OK – experiments will use GPU.")
     else:
         print(
-            "WARNING: GPU probe failed (TF cannot execute kernels on this GPU). "
-            "All experiment children will run on CPU.  "
-            "Consider upgrading TensorFlow to a version with Blackwell / "
-            "compute-capability-12.0 support."
+            "WARNING: GPU probe still failed after TF upgrade attempt. "
+            "All experiment children will run on CPU (this will be VERY slow). "
+            "Diagnostic output:\n" + output[-800:]
         )
     return _GPU_USABLE
 OUTPUT_DIR = SCRIPT_DIR / "outputs" / "step23_softmax_tenfold_tuning"
