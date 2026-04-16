@@ -1,0 +1,17 @@
+Fetal Health Classification — 1D-CNN on Engineered Features
+Dataset: CTU-UHB  |  Labels: step3_labels.csv
+Split: 70/30  |  Seed: 42
+============================================================
+
+              precision    recall  f1-score   support
+
+      Normal     0.3500    0.1842    0.2414        38
+     Suspect     0.4568    0.8043    0.5827        46
+Pathological     0.0000    0.0000    0.0000        17
+
+    accuracy                         0.4356       101
+   macro avg     0.2689    0.3295    0.2747       101
+weighted avg     0.3397    0.4356    0.3562       101
+
+Overall Accuracy: 0.4356
+Macro F1-Score:   0.2747

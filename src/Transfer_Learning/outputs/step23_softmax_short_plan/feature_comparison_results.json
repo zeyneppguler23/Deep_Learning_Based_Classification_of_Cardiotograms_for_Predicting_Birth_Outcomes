@@ -1,0 +1,82 @@
+{
+  "A": {
+    "n_features": 10,
+    "feature_names": [
+      "mean_fhr",
+      "median_fhr",
+      "std_fhr",
+      "iqr_fhr",
+      "masd",
+      "minute_mean_std",
+      "n_accel",
+      "n_decel",
+      "max_decel_depth",
+      "missing_frac_prefill"
+    ],
+    "mean_macro_f1": 0.6274426194477504,
+    "std_macro_f1": 0.07264733412260119,
+    "mean_balanced_acc": 0.6421385872718488,
+    "std_balanced_acc": 0.07428398085297268,
+    "mean_recall_Normal": 0.5875820173006875,
+    "mean_recall_Mild": 0.7203813635624782,
+    "mean_recall_Severe": 0.618452380952381
+  },
+  "B": {
+    "n_features": 14,
+    "feature_names": [
+      "mean_fhr",
+      "median_fhr",
+      "std_fhr",
+      "iqr_fhr",
+      "masd",
+      "minute_mean_std",
+      "n_accel",
+      "n_decel",
+      "max_decel_depth",
+      "missing_frac_prefill",
+      "lf_power",
+      "hf_power",
+      "lf_hf_ratio",
+      "spectral_entropy"
+    ],
+    "mean_macro_f1": 0.6135943930142594,
+    "std_macro_f1": 0.06416604478705205,
+    "mean_balanced_acc": 0.6352473204880998,
+    "std_balanced_acc": 0.07884187754116474,
+    "mean_recall_Normal": 0.6875879714914241,
+    "mean_recall_Mild": 0.6111301804490659,
+    "mean_recall_Severe": 0.6070238095238095
+  },
+  "C": {
+    "n_features": 20,
+    "feature_names": [
+      "mean_fhr",
+      "median_fhr",
+      "std_fhr",
+      "iqr_fhr",
+      "masd",
+      "minute_mean_std",
+      "n_accel",
+      "n_decel",
+      "max_decel_depth",
+      "missing_frac_prefill",
+      "lf_power",
+      "hf_power",
+      "lf_hf_ratio",
+      "spectral_entropy",
+      "sample_entropy",
+      "approx_entropy",
+      "hjorth_activity",
+      "hjorth_mobility",
+      "hjorth_complexity",
+      "higuchi_fd"
+    ],
+    "mean_macro_f1": 0.6297067114547095,
+    "std_macro_f1": 0.050807306291780485,
+    "mean_balanced_acc": 0.6453262264599591,
+    "std_balanced_acc": 0.07004548356909322,
+    "mean_recall_Normal": 0.6129151837080224,
+    "mean_recall_Mild": 0.7185396861480452,
+    "mean_recall_Severe": 0.6045238095238095
+  }
+}
