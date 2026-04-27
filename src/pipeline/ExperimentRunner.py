@@ -29,19 +29,19 @@ class CTGExperiment:
         for iteration in range(1, self.n_iterations + 1):
             print(f"\nIteration {iteration}/{self.n_iterations}")
 
-            # --- Step 1: Undersample ---
+            #  Step 1: Undersample
             X_bal, y_bal_int = self.sampler.sample(
                 X, y_int, seed=self.base_seed + iteration
             )
 
-            # --- Step 2: Normalize ---
+            #  Step 2: Normalize
             X_bal = self.normalizer_fn(X_bal)
 
-            # --- Step 3: One-hot ---
+            #  Step 3: One-hot
             y_bal = to_categorical(y_bal_int, num_classes=2)
             y_labels_balanced = y_bal[:, 1]
 
-            # --- Step 4: Stratified 10-fold CV ---
+            #  Step 4: Stratified 10-fold CV
             for fold, (train_idx, test_idx) in enumerate(
                 self.cv.split(X_bal, y_labels_balanced, seed=self.base_seed + iteration),
                 1
@@ -53,7 +53,7 @@ class CTGExperiment:
                 X_test = X_bal[test_idx]
                 y_test = y_bal[test_idx]
 
-                # --- Print split info (exactly like your notebook) ---
+                #  Print split info (exactly like your notebook)
                 n_normal_train = (y_train[:, 0] == 1).sum()
                 n_abnormal_train = (y_train[:, 1] == 1).sum()
                 n_normal_test = (y_test[:, 0] == 1).sum()
@@ -62,12 +62,12 @@ class CTGExperiment:
                 print(f"Train: Normal={n_normal_train}, Abnormal={n_abnormal_train}, Total={len(train_idx)}")
                 print(f"Test:  Normal={n_normal_test}, Abnormal={n_abnormal_test}, Total={len(test_idx)}")
 
-                # --- Train ---
+                #  Train
                 print("Training...", end=" ", flush=True)
                 model, history = self.trainer.train(X_train, y_train)
                 print(f"Done! ({len(history.history['loss'])} epochs, final loss={history.history['loss'][-1]:.4f})")
 
-                # --- Predict ---
+                #  Predict
                 y_prob = model.predict(X_test, verbose=0)[:, 1]
                 y_test_int = y_test[:, 1]
 
@@ -78,7 +78,7 @@ class CTGExperiment:
                     f"std={y_prob.std():.3f}"
                 )
 
-                # --- Evaluate ---
+                #  Evaluate
                 fold_results = self.evaluator.evaluate_fold(
                     y_test_int, y_prob, iteration=iteration, fold=fold
                 )

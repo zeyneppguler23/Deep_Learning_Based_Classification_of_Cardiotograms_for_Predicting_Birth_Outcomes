@@ -36,7 +36,7 @@ class BinaryClassifierEvaluator:
 
         return fold_result
 
-    # ---------- Aggregation ----------
+    # Aggregation 
     def aggregate(self):
         df = pd.DataFrame(self.fold_results)
         summary = {}
@@ -52,7 +52,7 @@ class BinaryClassifierEvaluator:
 
         return summary, df
 
-    # ---------- Paper-style Reporting ----------
+    #  Paper-style Reporting 
     def report_paper_results(self, threshold=0.4):
         summary, _ = self.aggregate()
         print("\n===== CTG-Net 10-Fold CV Results =====")
@@ -65,7 +65,7 @@ class BinaryClassifierEvaluator:
 
         return summary
 
-    # ---------- Logging ----------
+    #  Logging 
     def save_csv(self, path="results/fold_results.csv"):
         df = pd.DataFrame(self.fold_results)
         df.to_csv(path, index=False)
