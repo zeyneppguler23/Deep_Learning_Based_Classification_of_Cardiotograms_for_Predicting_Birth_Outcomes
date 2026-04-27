@@ -17,6 +17,7 @@ The experimental work is notebook-driven, while reusable logic is placed in Pyth
 The code expects WFDB-formatted CTG records and expert annotation files to be available locally in the repository structure.
 
 ## Project Directory Map
+NOTE: Main notebooks and main models used in the dissertation report are: 07_Replicating_CTGNet.ipynb, 08_MS_CTG_NET.ipynb and Hybrid-MS-CNN.ipynb. Rest of the notebooks are for expremental purposes and other seperate models in seperate notebooks are not included in the final report. Details are below:
 
 ```text
 Deep_Learning_Based_Classification_of_Cardiotograms_for_Predicting_Birth_Outcomes/
