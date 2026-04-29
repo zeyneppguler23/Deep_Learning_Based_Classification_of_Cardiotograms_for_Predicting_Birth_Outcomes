@@ -18,7 +18,7 @@ The code expects WFDB-formatted CTG records and expert annotation files to be av
 
 ## Project Directory Map
 
-NOTE: Main notebooks and main models used in the dissertation report are: 07_Replicating_CTGNet.ipynb, 08_MS_CTG_NET.ipynb and Hybrid-MS-CNN.ipynb. Rest of the notebooks are for expremental purposes and other seperate models in seperate notebooks are not included in the final report. Details are below:
+NOTE: Main notebooks and main models used in the dissertation report are: 07_Replicating_CTGNet.ipynb, 08_MS_CTG_NET.ipynb and Hybrid-MS-CNN.ipynb. Rest of the notebooks are for expremental purposes and other seperate models in seperate notebooks are not included in the final report. Details are below (PLEASE NOTE THAT NOTEBOOKS MARKED AS 'EXPERIMENTAL NOTEBOOK' DOES NOT CONTRIBUTE TO THE RESULTS OF THE PROJECT. However, I included them in the repo as it gave me direction when I was exploring different approaches):
 
 ```text
 Deep_Learning_Based_Classification_of_Cardiotograms_for_Predicting_Birth_Outcomes/
@@ -42,7 +42,6 @@ Deep_Learning_Based_Classification_of_Cardiotograms_for_Predicting_Birth_Outcome
 |   |-- notebooks/ -- main notebook experiments
 |   |   |-- 01_raw_vs_preprocessed.ipynb -- compares raw and cleaned signals
 |   |   |-- 02_Majority_Voting.ipynb -- explores and checks majority voting
-|   |   |-- 03_Custom_Model_Binary_Classification.ipynb --EXPERIMENTAL NOTEBOOK custom binary classification experiments
 |   |   |-- 04_signal_transformation.ipynb --  EXPERIMENTAL NOTEBOOK signal transformation trials
 |   |   |-- 05_ResNet.ipynb -- EXPERIMENTAL NOTEBOOK ResNet-based model experiments
 |   |   |-- **07_Replicating_CTGNet.ipynb** -- CTG-Net notebook
