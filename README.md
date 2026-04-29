@@ -17,6 +17,7 @@ The experimental work is notebook-driven, while reusable logic is placed in Pyth
 The code expects WFDB-formatted CTG records and expert annotation files to be available locally in the repository structure.
 
 ## Project Directory Map
+
 NOTE: Main notebooks and main models used in the dissertation report are: 07_Replicating_CTGNet.ipynb, 08_MS_CTG_NET.ipynb and Hybrid-MS-CNN.ipynb. Rest of the notebooks are for expremental purposes and other seperate models in seperate notebooks are not included in the final report. Details are below:
 
 ```text
@@ -74,6 +75,16 @@ Typical workflow:
 3. open the repository in VS Code
 4. select the correct Python interpreter for the workspace
 5. run notebooks from `src/notebooks/` or `src/Transfer_Learning/`
+
+## Python Version
+
+Use Python 3.11 for the most predictable setup.
+
+The repository depends on TensorFlow 2.16.1 and other scientific Python packages, so using a different Python version may require adjusting dependency versions. If you want the same environment on another machine, start with Python 3.11 and install packages into a fresh virtual environment.
+
+## Setup
+
+Before running the notebooks, make sure the expected dataset and annotation files are present in the repository folders described above.
 
 ## Outputs
 
